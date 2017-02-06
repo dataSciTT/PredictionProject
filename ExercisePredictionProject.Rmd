@@ -1,0 +1,207 @@
+---
+title: "ExcercisePredictionProject"
+author: "Tan Tun Tai"
+date: "February 3, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+library(caret);library(gbm);
+library(AppliedPredictiveModeling)
+```
+
+# Excersize Type Prediction
+The goal of this project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. We will find out which variables can be use to perform prediction. A report will be created to describe how is model is build, how cross validation is used, The expected out of sample error, and reasons of the choices made. Then, the prediction model will be use to predict 20 different test cases.
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+## Data Read and Preparation
+
+```{r DataPrepare, cache=TRUE}
+
+adData = read.csv("D:\\RProjects\\Module8Study\\pml-training.csv")
+
+finalTestingData= read.csv("D:\\RProjects\\Module8Study\\pml-testing.csv")
+```
+
+## Data Summary
+
+```{r sumData, cache=TRUE}
+
+names(adData)
+str(adData)
+
+```
+
+## Data Cleaning
+
+In this step, we will clean the data and get rid of observations with missing values as well as some meaningless variables.
+
+1. Check the complete cases and remove columns that contain NA missing values.
+
+```{r clean1, cache=TRUE}
+
+sum(complete.cases(adData))
+adData <- adData[, colSums(is.na(adData)) == 0]
+
+```
+
+2. Remove columns that do not contribute much to the accelerometer measurements and non numeric collums
+
+```{r clean2, cache=TRUE}
+
+classe <- adData$classe
+
+Cl <- grep("name|timestamp|window|X", colnames(adData), value=F) 
+adData <- adData[,-Cl]
+
+adData <- adData[, sapply(adData, is.numeric)]
+
+adData$classe <- classe
+
+```
+
+The numbers of records and predictors after data cleaning
+
+```{r clean3}
+
+dim(adData)
+```
+
+## Removal of less relevant predictors
+
+1. Use Correlation analysis to find out more related predictors and then remove the others
+
+```{r removal1, echo=FALSE, cache=TRUE}
+
+Hcorr <- caret::findCorrelation(cor(adData[, -53]), cutoff=0.5)
+C2 <- names(adData)[Hcorr]
+
+adData <- adData[,C2]
+
+adData$classe <- classe
+```
+
+The numbers of records and predictors after removal less relevant predictors
+
+```{r removal3}
+
+dim(adData)
+```
+
+## Data Slicing
+
+```{r slicing, cache=TRUE}
+
+set.seed(3433)
+inTrain = createDataPartition(adData$classe, p = 3/4)[[1]]
+training = adData[ inTrain,]
+testing = adData[-inTrain,]
+
+
+dim(training)
+dim(testing)
+table(training$classe)
+
+```
+
+## Cross Validation
+
+In order to avoid overfitting and to reduce out of sample errors, TrainControl is used to perform 5-fold cross validation.
+
+```{r cross}
+
+tc <- trainControl(method = "cv", number = 5, verboseIter=FALSE , preProcOptions="pca", allowParallel=TRUE)
+
+```
+
+## Model Building with various methods
+
+Model Building with random forests
+
+```{r modelFit1,warning=FALSE, cache=TRUE}
+
+set.seed(62433)
+
+fit.rf <- train(classe ~ .,
+                      data = training,
+                      method="rf", 
+                      verbose = F, trControl= tc)
+
+pred.rf <- predict(fit.rf, testing)
+
+confusionMatrix.pred.rf <- confusionMatrix(pred.rf, testing$classe)
+
+confusionMatrix.pred.rf
+
+```
+
+Model Building with boosting
+
+```{r modelFit2,warning=FALSE, cache=TRUE}
+
+set.seed(62433)
+
+fit.gbm <- train(classe ~ .,
+                       data = training,
+                       method="gbm", 
+                       verbose = F, trControl= tc)
+
+pred.gbm <- predict(fit.gbm, testing)
+
+confusionMatrix.pred.gbm <- confusionMatrix(pred.gbm, testing$classe)
+
+confusionMatrix.pred.gbm
+
+```
+
+Model Building with LDA
+
+```{r modelFit3,warning=FALSE, cache=TRUE}
+
+set.seed(62433)
+
+fit.lda <- train(classe ~ .,
+                       data = training,
+                       method="lda", 
+                       verbose = F, trControl= tc)
+
+pred.lda <- predict(fit.lda, testing)
+
+confusionMatrix.pred.lda <- confusionMatrix(pred.lda, testing$classe)
+
+confusionMatrix.pred.lda
+
+```
+
+Finally, predictive model for activity recognition using Random Forest algorithm showed the best result as the accuracy is  0.9929   and kappa is 0.991
+
+## Final test with Selected Random Forest Model
+
+```{r finaltest}
+
+C3 <- names(adData[,-32])
+
+finalTestingData <- finalTestingData[,C3]
+
+str(finalTestingData)
+dim(training)
+
+
+predictfinal <- predict(fit.rf, finalTestingData)
+
+data.frame(1:20,predictfinal)
+
+```
+
+
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
